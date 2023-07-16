@@ -1,0 +1,116 @@
+##############################################################
+# Parallel tests 250SOC configuration file.
+#
+# This file contains parameters for the Parallel tests
+# in the 250SOC BIST. These tests are:
+#	(1) DDR4 SDRAM
+#   	(2) Oculink channels
+#	(3) QSFP
+#
+##############################################################
+
+##############################################################
+
+# Duration of the tests in seconds
+duration 60
+
+# Period in seconds between the reporting the test status
+report_status 10
+
+# Report voltages, current and temperature as part of the report
+# 1 - Enable reporting of system monitor
+# 0 - disable reporting of system monitor
+report_sysmon 1
+
+##############################################################
+
+# DDR4 sdram test
+# 1 - enable the test
+# 0 - disable the test
+test_ddr4 1
+
+# patterns per bank
+# individual test pattern enable, requires test_ddr4 to be enabled
+# bitwise
+# 0x4 - DDR4_PATTERN_COUNT 
+# 0x8 - DDR4_PATTERN_ROLLING1 
+# 0x10 - DDR4_PATTERN_ROLLING0 
+# 0x20 - DDR4_PATTERN_F0 
+# 0x40 - DDR4_PATTERN_5A 
+# 0x80 - DDR4_PATTERN_PRBS 
+ddr4_pattern 0xFC
+
+# Oculinks loopback test
+test_oculinks 1
+
+# 8bit Channel mask
+# bit0: Oculink0_A		Horizontal
+# bit1: Oculink0_B		Horizontal
+# bit2: Oculink1_A		Vertical
+# bit3: Oculink1_B		Vertical
+# bit4: Oculink2_A		Vertical
+# bit5: Oculink2_B		Vertical
+# bit6: Oculink3_A		Horizontal
+# bit7: Oculink3_B		Horizontal
+oculink_channels 0xFF
+
+# Loopback mode, 4 bits per channel
+# 0	Normal
+# 1	Near-End PCS
+# 2	Near-End PMA
+# 3	Reserved
+# 4	Far-End PMA
+# 5	Reserved
+# 6	Far-End PCS
+oculink_loopback 0x22222222
+
+# QSPF28 test
+test_qsfps 1
+
+# QSFP channels to test specified by a bitwise mask
+# bit0 - QSFP0
+# bit1 - QSFP1
+qsfp_channels 0x3
+
+# Loopback mode, 4 bits per channel
+# 0	Normal
+# 1	Near-End PCS
+# 2	Near-End PMA
+# 3	Reserved
+# 4	Far-End PMA
+# 5	Reserved
+# 6	Far-End PCS
+# 7	Reserved
+qsfp_loopback 0x00
+
+# Acceptable bit error ratio
+acceptable_ber 3.03e-11
+
+# Power Burners#########################################################
+
+# Power burner enable
+# 0 - disable power burners
+# 1 - enable power burners
+power_burners_enable 0
+
+# Power burner mask
+# bits 0-7: SREG control
+# bits 8-15: BRAM control
+# bits 16-23: DSP control
+power_burners_mask 0xBBBBBB
+
+# load step testing, note this test takes priority over the previous static power burner test
+# 0 - disable load step testing
+# 1 - enable load step testing
+enable_loadtest_stepping    0
+
+# low and high burner values
+lowest_burners_mask     0
+highest_burners_mask    0xBBBBBB
+
+# loadtest freq in ms. E.G. 1000 means a load change every second.
+loadtest_freq               7000 
+
+
+
+

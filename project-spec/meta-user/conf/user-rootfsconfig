@@ -1,0 +1,9 @@
+#Note: Mention Each package in individual line
+#These packages will get added into rootfs menu entry
+
+CONFIG_gpio-demo
+CONFIG_peekpoke
+CONFIG_getmac
+CONFIG_nalla250socbist
+CONFIG_nalla250soc
+CONFIG_simple-test

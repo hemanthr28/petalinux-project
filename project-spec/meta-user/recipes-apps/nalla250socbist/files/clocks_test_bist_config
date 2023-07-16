@@ -1,0 +1,48 @@
+##############################################################
+# Clocks test 250SOC BIST configuration file.
+#
+# This file contains parameters for the clocks test
+# in the 250SOC BIST.
+#
+##############################################################
+
+# set various parameters of the clocks test
+# 1 - enabled
+# 0 - disabled
+
+# clock_test_enable
+# enable / disbale the test
+clock_test_enable 1
+
+# clock_enables
+# Bit 0 - 100MHz ref clock
+# Bit 1 - 250MHz PCIe clock
+# BIT 2 - DDR4 clock
+# BIT 3 - ARM clock
+# BIT 4 - Oculink clock 0
+# BIT 5 - Oculink clock 1
+# BIT 6 - Oculink clock 2
+# BIT 7 - Oculink clock 3
+# BIT 8 - QSFP clock 0
+# BIT 9 - QSFP clock 1
+
+clock_enables 0x3FF
+
+# set the frequency tolerance for the clock tests. Default tolerance is 1%
+# tolerace between 1 and 100
+freq_tolerance 1
+
+#Set to display proc info
+display_procinfo 0
+
+#set to display system monitor
+display_sysmon 1
+
+# i2c buses to test
+# 1 - Oculink and QSFP bus
+# 2 - TMP431 & PROM bus
+# 4 - UCD bus
+
+test_i2c 0x7
+
+

@@ -1,0 +1,76 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          nalla_pcie_250_soc
+# Required-Start:
+# Required-Stop:
+# Default-Start:     S
+# Default-Stop:      2 3 4 5
+# Short-Description: Script to start the nalla_pcie_250_soc
+#               	 and also runs the ep_daemon.sh script
+#               
+#               
+#
+### END INIT INFO
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+DAEMON=/usr/share/nallatech/ep_daemon.sh
+NAME=nalla250socd
+DESC="250-SoC daemon"
+
+# source function library
+. /etc/init.d/functions
+
+test -f $DAEMON || exit 0
+KERNEL_REL=$(uname -r)
+prog="nalla250socd"
+
+start() {
+   # Start driver.
+   RETVAL=0
+   echo -n $"Starting $prog: "
+
+   # invoke insmod with all arguments we got
+   # and use a pathname, as insmod doesn't look in . by default
+   start-stop-daemon -S -b -x $DAEMON
+
+   RETVAL=$?
+
+   return $RETVAL
+}
+
+stop() {
+   # Stop driver.
+   RETVAL=0
+   echo -n $"Shutting down $prog: "
+   start-stop-daemon -K -n ep_daemon.sh
+   rmmod /lib/modules/$(KERNEL_REL)/extra/nalla_250_soc.ko
+   RETVAL=$?
+   return $RETVAL
+}
+
+# See how we were called.
+case "$1" in
+  start)
+   start
+   ;;
+  stop)
+   stop
+   ;;
+  restart)
+   stop
+   start
+   RETVAL=$?
+   ;;
+  status)
+   status nalla250socd
+   RETVAL=$?
+   ;;
+  *)
+   echo $"Usage: $0 {start|stop|restart|status}"
+   exit 1
+esac
+
+exit $RETVAL
+
+# EOF - nalla250socd
+

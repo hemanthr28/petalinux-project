@@ -1,0 +1,38 @@
+/include/ "system-conf.dtsi"
+/include/ "pl-custom.dtsi"
+
+
+&gem1 {
+    phy-mode = "sgmii";
+    phy-handle = <&phy0>;
+    status = "okay";        
+    is-internal-pcspma;
+    xlnx,ptp-enet-clock = <0x0>;
+    phy0: phy@0 {
+        compatible = "ethernet-phy-ieee802.3-c22";
+        device_type = "ethernet-phy";
+        ti,rx-internal-delay = <0x8>;
+        ti,tx-internal-delay = <0xa>;
+        ti,fifo-depth = <0x1>;
+        reg = <0>;
+    };
+};
+&qspi {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	flash0: flash@0 {
+        compatible = "n25q512a","micron,m25p80","jedec,spi-nor";
+		reg = <0x0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+	};
+};
+
+&pcie_us_rqrc_1{
+    compatible = "generic-uio";
+};
+
+&protocol_processor_v_2{
+    compatible = "generic-uio";
+};

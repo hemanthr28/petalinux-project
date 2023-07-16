@@ -1,0 +1,400 @@
+diff -Naur u-boot-xlnx-xilinx-v2020.2/board/xilinx/common/board.c u-boot-xlnx-xilinx-v2020.2_new/board/xilinx/common/board.c
+--- u-boot-xlnx-xilinx-v2020.2/board/xilinx/common/board.c	2021-02-02 17:11:07.695677464 +0000
++++ u-boot-xlnx-xilinx-v2020.2_new/board/xilinx/common/board.c	2021-02-02 17:11:07.579677468 +0000
+@@ -14,34 +14,43 @@
+ #include <fru.h>
+ #include <i2c_eeprom.h>
+ #include <net.h>
++#include <spi_flash.h>
+ 
+-#if defined(CONFIG_ZYNQ_GEM_I2C_MAC_OFFSET)
+ int zynq_board_read_rom_ethaddr(unsigned char *ethaddr)
+ {
+ 	int ret = -EINVAL;
+-	struct udevice *dev;
+-	ofnode eeprom;
++	struct spi_flash *flash;
++    char* fsbl_str = 0xFFFFFC00;
++    unsigned char eth1addr[6];
++    int i;
++
++	flash = spi_flash_probe(CONFIG_SF_DEFAULT_BUS,
++				CONFIG_SF_DEFAULT_CS,
++				CONFIG_SF_DEFAULT_SPEED,
++				CONFIG_SF_DEFAULT_MODE);
++
++	if (!flash) {
++		printf("no flash\n");
++		printf("SPI(bus:%u cs:%u) probe failed\n",
++			CONFIG_SF_DEFAULT_BUS,
++			CONFIG_SF_DEFAULT_CS);
++		return 0;
++	}
++
++	if (spi_flash_read_otp(flash, 0, 6, ethaddr))
++		printf("%s:SPI MAC address read failed\n", __func__);
++	if (spi_flash_read_otp(flash, 6, 6, eth1addr))
++		printf("%s:SPI MAC address eth1addr read failed\n", __func__);
++ 
++	debug("%s: SPI ethaddr: %02X:%02X:%02X:%02X:%02X:%02X\n", __func__, ethaddr[0], ethaddr[1], ethaddr[2], ethaddr[3], ethaddr[4], ethaddr[5]);
++    sprintf(fsbl_str,"ethaddr=%02x:%02x:%02x:%02x:%02x:%02x\neth1addr=%02x:%02x:%02x:%02x:%02x:%02x\n",
++                        ethaddr[0], ethaddr[1], ethaddr[2], ethaddr[3], ethaddr[4], ethaddr[5],eth1addr[0], eth1addr[1], eth1addr[2], eth1addr[3], eth1addr[4], eth1addr[5]);
++	if (flash)
++		spi_flash_free(flash);
+ 
+-	eeprom = ofnode_get_chosen_node("xlnx,eeprom");
+-	if (!ofnode_valid(eeprom))
+-		return -ENODEV;
+-
+-	debug("%s: Path to EEPROM %s\n", __func__,
+-	      ofnode_read_chosen_string("xlnx,eeprom"));
+-
+-	ret = uclass_get_device_by_ofnode(UCLASS_I2C_EEPROM, eeprom, &dev);
+-	if (ret)
+-		return ret;
+-
+-	ret = dm_i2c_read(dev, CONFIG_ZYNQ_GEM_I2C_MAC_OFFSET, ethaddr, 6);
+-	if (ret)
+-		debug("%s: I2C EEPROM MAC address read failed\n", __func__);
+-	else
+-		debug("%s: I2C EEPROM MAC %pM\n", __func__, ethaddr);
+ 
+ 	return ret;
+ }
+-#endif
+ 
+ #define EEPROM_HEADER_MAGIC		0xdaaddeed
+ #define EEPROM_HDR_MANUFACTURER_LEN	16
+diff -Naur u-boot-xlnx-xilinx-v2020.2/drivers/mtd/spi/sf_probe.c u-boot-xlnx-xilinx-v2020.2_new/drivers/mtd/spi/sf_probe.c
+--- u-boot-xlnx-xilinx-v2020.2/drivers/mtd/spi/sf_probe.c	2021-02-02 17:11:07.703677463 +0000
++++ u-boot-xlnx-xilinx-v2020.2_new/drivers/mtd/spi/sf_probe.c	2021-02-02 17:11:07.625677466 +0000
+@@ -102,6 +102,16 @@
+ 	return log_ret(mtd->_read(mtd, offset, len, &retlen, buf));
+ }
+ 
++static int spi_flash_std_read_otp(struct udevice *dev, u32 offset, size_t len,
++			      void *buf)
++{
++	struct spi_flash *flash = dev_get_uclass_priv(dev);
++	struct mtd_info *mtd = &flash->mtd;
++	size_t retlen;
++
++	return log_ret(mtd->_read_otp(mtd, offset, len, &retlen, buf));
++}
++
+ static int spi_flash_std_write(struct udevice *dev, u32 offset, size_t len,
+ 			       const void *buf)
+ {
+@@ -160,6 +170,7 @@
+ 
+ static const struct dm_spi_flash_ops spi_flash_std_ops = {
+ 	.read = spi_flash_std_read,
++	.read_otp = spi_flash_std_read_otp,
+ 	.write = spi_flash_std_write,
+ 	.erase = spi_flash_std_erase,
+ 	.get_sw_write_prot = spi_flash_std_get_sw_write_prot,
+diff -Naur u-boot-xlnx-xilinx-v2020.2/drivers/mtd/spi/sf-uclass.c u-boot-xlnx-xilinx-v2020.2_new/drivers/mtd/spi/sf-uclass.c
+--- u-boot-xlnx-xilinx-v2020.2/drivers/mtd/spi/sf-uclass.c	2021-02-02 17:11:07.703677463 +0000
++++ u-boot-xlnx-xilinx-v2020.2_new/drivers/mtd/spi/sf-uclass.c	2021-02-02 17:11:07.625677466 +0000
+@@ -16,7 +16,10 @@
+ {
+ 	return log_ret(sf_get_ops(dev)->read(dev, offset, len, buf));
+ }
+-
++int spi_flash_read_otp_dm(struct udevice *dev, u32 offset, size_t len, void *buf)
++{
++	return log_ret(sf_get_ops(dev)->read_otp(dev, offset, len, buf));
++}
+ int spi_flash_write_dm(struct udevice *dev, u32 offset, size_t len,
+ 		       const void *buf)
+ {
+@@ -92,6 +95,8 @@
+ 	if (!reloc_done) {
+ 		if (ops->read)
+ 			ops->read += gd->reloc_off;
++		if (ops->read_otp)
++			ops->read_otp += gd->reloc_off;
+ 		if (ops->write)
+ 			ops->write += gd->reloc_off;
+ 		if (ops->erase)
+diff -Naur u-boot-xlnx-xilinx-v2020.2/drivers/mtd/spi/spi-nor-core.c u-boot-xlnx-xilinx-v2020.2_new/drivers/mtd/spi/spi-nor-core.c
+--- u-boot-xlnx-xilinx-v2020.2/drivers/mtd/spi/spi-nor-core.c	2021-02-02 17:11:07.703677463 +0000
++++ u-boot-xlnx-xilinx-v2020.2_new/drivers/mtd/spi/spi-nor-core.c	2021-02-02 17:11:07.625677466 +0000
+@@ -107,7 +107,43 @@
+ 
+ 	return len;
+ }
++static ssize_t spi_nor_read_otp_data(struct spi_nor *nor, loff_t from, size_t len,
++				 u_char *buf)
++{
++	struct spi_mem_op op =
++			SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_OTP_READ, 1),
++				   SPI_MEM_OP_ADDR(nor->addr_width, from, 1),
++				   SPI_MEM_OP_DUMMY(nor->read_dummy, 1),
++				   SPI_MEM_OP_DATA_IN(len, buf, 1));
++	size_t remaining = len;
++	int ret;
+ 
++	/* get transfer protocols. */
++	op.cmd.buswidth = spi_nor_get_protocol_inst_nbits(nor->read_proto);
++	op.addr.buswidth = spi_nor_get_protocol_addr_nbits(nor->read_proto);
++	op.dummy.buswidth = op.addr.buswidth;
++	op.data.buswidth = spi_nor_get_protocol_data_nbits(nor->read_proto);
++
++	/* convert the dummy cycles to the number of bytes */
++	op.dummy.nbytes = (nor->read_dummy * op.dummy.buswidth) / 8;
++
++	while (remaining) {
++		op.data.nbytes = remaining < UINT_MAX ? remaining : UINT_MAX;
++		ret = spi_mem_adjust_op_size(nor->spi, &op);
++		if (ret)
++			return ret;
++
++		ret = spi_mem_exec_op(nor->spi, &op);
++		if (ret)
++			return ret;
++
++		op.addr.val += op.data.nbytes;
++		remaining -= op.data.nbytes;
++		op.data.buf.in += op.data.nbytes;
++	}
++
++	return len;
++}
+ static ssize_t spi_nor_write_data(struct spi_nor *nor, loff_t to, size_t len,
+ 				  const u_char *buf)
+ {
+@@ -1093,6 +1129,127 @@
+ #endif
+ 	return ret;
+ }
++static int spi_nor_read_otp(struct mtd_info *mtd, loff_t from, size_t len,
++			size_t *retlen, u_char *buf)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++	u32 offset = from;
++	u32 stack_shift = 0;
++	u32 read_len = 0;
++	u32 rem_bank_len = 0;
++	u8 bank;
++	u8 is_ofst_odd = 0;
++	u8 cur_bank;
++	u8 nxt_bank;
++	u32 bank_size;
++
++	dev_dbg(nor->dev, "from 0x%08x, len %zd\n", (u32)from, len);
++
++	if (nor->isparallel && (offset & 1)) {
++	    /* We can hit this case when we use file system like ubifs */
++		from = (loff_t)(from - 1);
++		len = (size_t)(len + 1);
++		is_ofst_odd = 1;
++	}
++
++	while (len) {
++		if (nor->addr_width == 3) {
++			bank = (u32)from / (SZ_16M << nor->shift);
++			rem_bank_len = ((SZ_16M << nor->shift) *
++					(bank + 1)) - from;
++		}
++		offset = from;
++
++		if (nor->isstacked) {
++			stack_shift = 1;
++			if (offset >= (mtd->size / 2)) {
++				offset = offset - (mtd->size / 2);
++				nor->spi->flags |= SPI_XFER_U_PAGE;
++			} else {
++				nor->spi->flags &= ~SPI_XFER_U_PAGE;
++			}
++		}
++
++		if (nor->addr_width == 4) {
++			/*
++			 * Some flash devices like N25Q512 have multiple dies
++			 * in it. Read operation in these devices is bounded
++			 * by its die segment. In a continuous read, across
++			 * multiple dies, when the last byte of the selected
++			 * die segment is read, the next byte read is the
++			 * first byte of the same die segment. This is Die
++			 * cross over issue. So to handle this issue, split
++			 * a read transaction, that spans across multiple
++			 * banks, into one read per bank. Bank size is 16MB
++			 * for single and dual stacked mode and 32MB for dual
++			 * parallel mode.
++			 */
++			if (nor->spi && nor->spi->multi_die) {
++				bank_size = (SZ_16M << nor->shift);
++				cur_bank = offset / bank_size;
++				nxt_bank = (offset + len) / bank_size;
++				if (cur_bank != nxt_bank)
++					rem_bank_len = (bank_size *
++							(cur_bank + 1)) -
++							offset;
++				else
++					rem_bank_len = (mtd->size >>
++							stack_shift) -
++							offset;
++			} else {
++				rem_bank_len = (mtd->size >> stack_shift) -
++						offset;
++			}
++		}
++
++		if (nor->isparallel) {
++			offset /= 2;
++			nor->spi->flags = SPI_XFER_STRIPE;
++		}
++
++		if (nor->addr_width == 3) {
++#ifdef CONFIG_SPI_FLASH_BAR
++			write_bar(nor, offset);
++#endif
++		}
++
++		if (len < rem_bank_len)
++			read_len = len;
++		else
++			read_len = rem_bank_len;
++
++		ret = spi_nor_wait_till_ready(nor);
++		if (ret)
++			goto read_err;
++
++		ret = nor->read_otp(nor, offset, read_len, buf);
++		if (ret == 0) {
++			/* We shouldn't see 0-length reads */
++			ret = -EIO;
++			goto read_err;
++		}
++		if (ret < 0)
++			goto read_err;
++
++		if (is_ofst_odd == 1) {
++			memcpy(buf, (buf + 1), (len - 1));
++			*retlen += (ret - 1);
++		} else {
++			*retlen += ret;
++		}
++		buf += ret;
++		from += ret;
++		len -= ret;
++	}
++	ret = 0;
++
++read_err:
++#ifdef CONFIG_SPI_FLASH_BAR
++	ret = clean_bar(nor);
++#endif
++	return ret;
++}
+ 
+ #ifdef CONFIG_SPI_FLASH_SST
+ /*
+@@ -2645,6 +2802,7 @@
+ 	nor->read_proto = SNOR_PROTO_1_1_1;
+ 	nor->write_proto = SNOR_PROTO_1_1_1;
+ 	nor->read = spi_nor_read_data;
++	nor->read_otp = spi_nor_read_otp_data;
+ 	nor->write = spi_nor_write_data;
+ 	nor->read_reg = spi_nor_read_reg;
+ 	nor->write_reg = spi_nor_write_reg;
+@@ -2685,6 +2843,7 @@
+ 	mtd->size = params.size << nor->isstacked;
+ 	mtd->_erase = spi_nor_erase;
+ 	mtd->_read = spi_nor_read;
++	mtd->_read_otp = spi_nor_read_otp;
+ 
+ #if defined(CONFIG_SPI_FLASH_STMICRO) || defined(CONFIG_SPI_FLASH_SST)
+ 	/* NOR protection support for STmicro/Micron chips and similar */
+diff -Naur u-boot-xlnx-xilinx-v2020.2/include/configs/xilinx_zynqmp.h u-boot-xlnx-xilinx-v2020.2_new/include/configs/xilinx_zynqmp.h
+--- u-boot-xlnx-xilinx-v2020.2/include/configs/xilinx_zynqmp.h	2021-02-02 17:11:07.694677464 +0000
++++ u-boot-xlnx-xilinx-v2020.2_new/include/configs/xilinx_zynqmp.h	2021-02-02 17:11:07.577677468 +0000
+@@ -110,7 +110,7 @@
+ 	"kernel_size_r=0x10000000\0" \
+ 	"scriptaddr=0x20000000\0" \
+ 	"ramdisk_addr_r=0x02100000\0" \
+-	"script_size_f=0x80000\0" \
++	"script_size_f=0x40000\0" \
+ 
+ #if defined(CONFIG_MMC_SDHCI_ZYNQ)
+ # define BOOT_TARGET_DEVICES_MMC(func)	func(MMC, mmc, 0) func(MMC, mmc, 1)
+diff -Naur u-boot-xlnx-xilinx-v2020.2/include/linux/mtd/mtd.h u-boot-xlnx-xilinx-v2020.2_new/include/linux/mtd/mtd.h
+--- u-boot-xlnx-xilinx-v2020.2/include/linux/mtd/mtd.h	2021-02-02 17:11:07.693677464 +0000
++++ u-boot-xlnx-xilinx-v2020.2_new/include/linux/mtd/mtd.h	2021-02-02 17:11:07.576677468 +0000
+@@ -244,7 +244,9 @@
+ 		      size_t *retlen, u_char *buf);
+ 	int (*_write) (struct mtd_info *mtd, loff_t to, size_t len,
+ 		       size_t *retlen, const u_char *buf);
+-	int (*_panic_write) (struct mtd_info *mtd, loff_t to, size_t len,
++	int (*_read_otp) (struct mtd_info *mtd, loff_t from, size_t len,
++		      size_t *retlen, u_char *buf);
++    int (*_panic_write) (struct mtd_info *mtd, loff_t to, size_t len,
+ 			     size_t *retlen, const u_char *buf);
+ 	int (*_read_oob) (struct mtd_info *mtd, loff_t from,
+ 			  struct mtd_oob_ops *ops);
+diff -Naur u-boot-xlnx-xilinx-v2020.2/include/linux/mtd/spi-nor.h u-boot-xlnx-xilinx-v2020.2_new/include/linux/mtd/spi-nor.h
+--- u-boot-xlnx-xilinx-v2020.2/include/linux/mtd/spi-nor.h	2021-02-02 17:11:07.693677464 +0000
++++ u-boot-xlnx-xilinx-v2020.2_new/include/linux/mtd/spi-nor.h	2021-02-02 17:11:07.576677468 +0000
+@@ -118,6 +118,7 @@
+ /* Used for Micron flashes only. */
+ #define SPINOR_OP_RD_EVCR      0x65    /* Read EVCR register */
+ #define SPINOR_OP_WD_EVCR      0x61    /* Write EVCR register */
++#define SPINOR_OP_OTP_READ     0x4B    /* Read OTP area */
+ 
+ /* Status Register bits. */
+ #define SR_WIP			BIT(0)	/* Write in progress */
+@@ -333,7 +334,9 @@
+ 			size_t len, u_char *read_buf);
+ 	ssize_t (*write)(struct spi_nor *nor, loff_t to,
+ 			 size_t len, const u_char *write_buf);
+-	int (*erase)(struct spi_nor *nor, loff_t offs);
++	ssize_t (*read_otp)(struct spi_nor *nor, loff_t from,
++			size_t len, u_char *read_buf);
++    int (*erase)(struct spi_nor *nor, loff_t offs);
+ 
+ 	int (*flash_lock)(struct spi_nor *nor, loff_t ofs, uint64_t len);
+ 	int (*flash_unlock)(struct spi_nor *nor, loff_t ofs, uint64_t len);
+diff -Naur u-boot-xlnx-xilinx-v2020.2/include/spi_flash.h u-boot-xlnx-xilinx-v2020.2_new/include/spi_flash.h
+--- u-boot-xlnx-xilinx-v2020.2/include/spi_flash.h	2021-02-02 17:11:07.694677464 +0000
++++ u-boot-xlnx-xilinx-v2020.2_new/include/spi_flash.h	2021-02-02 17:11:07.578677468 +0000
+@@ -33,6 +33,7 @@
+ 
+ struct dm_spi_flash_ops {
+ 	int (*read)(struct udevice *dev, u32 offset, size_t len, void *buf);
++	int (*read_otp)(struct udevice *dev, u32 offset, size_t len, void *buf);
+ 	int (*write)(struct udevice *dev, u32 offset, size_t len,
+ 		     const void *buf);
+ 	int (*erase)(struct udevice *dev, u32 offset, size_t len);
+@@ -67,6 +68,17 @@
+ int spi_flash_read_dm(struct udevice *dev, u32 offset, size_t len, void *buf);
+ 
+ /**
++ * spi_flash_read_otp_dm() - Read data from SPI flash one time programmable area
++ *
++ * @dev:	SPI flash device
++ * @offset:	Offset into device in bytes to read from
++ * @len:	Number of bytes to read
++ * @buf:	Buffer to put the data that is read
++ * @return 0 if OK, -ve on error
++ */
++int spi_flash_read_otp_dm(struct udevice *dev, u32 offset, size_t len, void *buf);
++
++/**
+  * spi_flash_write_dm() - Write data to SPI flash
+  *
+  * @dev:	SPI flash device
+@@ -123,6 +135,12 @@
+ 	return spi_flash_read_dm(flash->dev, offset, len, buf);
+ }
+ 
++static inline int spi_flash_read_otp(struct spi_flash *flash, u32 offset,
++				 size_t len, void *buf)
++{
++	return spi_flash_read_otp_dm(flash->dev, offset, len, buf);
++}
++
+ static inline int spi_flash_write(struct spi_flash *flash, u32 offset,
+ 				  size_t len, const void *buf)
+ {

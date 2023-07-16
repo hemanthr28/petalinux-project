@@ -1,0 +1,68 @@
+##############################################################
+#
+# 250SOC BIST configuration file.
+#
+# This file contains the general parameters for the 250SOC BIST
+#
+##############################################################
+
+##############################################################
+#
+# GENERAL BIST PARAMETERS
+#
+##############################################################
+
+# After each test is completed the existence of an exit file is checked. 
+# If the file exists then the BIST aborts.
+# If no exit file is specified then this check will not be performed.
+# Note that when the BIST begins it will erase an existing exit file.
+exit_file 250_soc_bist_exit
+
+# Recursively run the BIST a number of times.
+loop_bist 1
+
+# Continue after errors
+# The BIST will not fail when it encounters non critical errors. 
+# It will report the error and continue.
+# 1 - enabled, will continue after errors
+# 0 - disabled, will terminate when an error occurs
+allow_errors 1
+
+# PCIE card number 
+# When several PCIE cards are present in the system, select the card on 
+# which the BIST will run using this parameter.
+card_num 0
+
+##############################################################
+# PCIE Test Gen 3
+#
+# 1 Test PCIe Gen 3
+# 0 Don't test for PCIe Gen 3
+#
+##############################################################
+gen_3 1
+
+##############################################################
+#
+# ENABLE / DISABLE SPECIFIC BIST TESTS
+#
+# NOTE:
+# if no config file is specified the test will run with default parameters
+#
+##############################################################
+
+# Clocks test
+# 1 - test will be performed
+# 0 - test will be skipped
+# <test_name> <enable/disable> <test specific options file>
+clocks 1 ../../bist_configs/clocks_test_bist_config
+
+##############################################################
+# Parallel test
+# 1 - test will be performed
+# 0 - test will be skipped
+# <test_name> <enable/disable> <test specific options file>
+parallel 1 ../../bist_configs/parallel_test_bist_config
+
+
+##############################################################
